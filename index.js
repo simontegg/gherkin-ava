@@ -1,52 +1,63 @@
+// main
 const acorn = require('acorn')
+const escodegen = require('escodegen')
 const fs = require('fs')
+const Gherkin = require('gherkin')
 const isArray = require('is-array')
 const pretty = require('prettyjson')
-const escodegen = require('escodegen')
 const traverse = require('traverse')
-const Gherkin = require('gherkin')
-const escodegenOptions = { format: { semicolons: false } }
 
+// modules
 const getProgramExpression = require('./get-program-expression')
 const getFeatureExpression = require('./get-feature-expression')
 const getScenarioExpression = require('./get-scenario-expression')
+const scenarioAst = require('./scenario-ast')
 
-const featureFileStream = fs.createReadStream(__dirname + '/bottles.feature')
-const parser = new Gherkin.Parser(new Gherkin.AstBuilder())
-const matcher = new Gherkin.TokenMatcher()
-
-const keywords = [ 'Given', 'When', 'Then' ]
-
+// constants
+const avaSpecDeclaration = require('./ava-spec-declaration')
+const escodegenOptions = { format: { semicolons: false } }
+const keywords = ['Given', 'When', 'Then']
 const library = {
   Given: [],
   When: [],
   Then: []
 }
 
+// initialization
+const libraryStream = fs.createReadStream(__dirname + '/steps.js')
+const parser = new Gherkin.Parser(new Gherkin.AstBuilder())
+const matcher = new Gherkin.TokenMatcher()
+
 // let output = "const { feature } = require('ava-spec') \n" // use ast
 
-const stream = fs.createReadStream(__dirname + '/steps.js')
-stream.on('data', data => {
+libraryStream.on('data', data => {
+  const featureStream = fs.createReadStream(
+    __dirname + '/bottles.feature',
+    'utf8'
+  )
   const libraryAst = acorn.parse(data.toString())
-  console.log(pretty.render(libraryAst)) 
+  const declarations = []
 
   traverse(libraryAst).forEach(function (x) {
-
     // add top level module and variable requires
     if (this.level === 2 && x.type === 'VariableDeclaration') {
-      // TODO add variable declarations to ast
+      declarations.push(x)
     }
 
     // create library
-    if (this.level === 3 && x && x.type === 'CallExpression' && keywords.includes(this.node.callee.name)) {
+    if (
+      this.level === 3 &&
+      x &&
+      x.type === 'CallExpression' &&
+      keywords.includes(this.node.callee.name)
+    ) {
       const keyword = this.node.callee.name
-      const [ arg0, arg1 ] = this.node.arguments
-      library[keyword].push({ re: RegExp(arg0.value, 'g'), node: arg1 })
+      const [regex, node] = this.node.arguments
+      library[keyword].push({ re: RegExp(regex.value, 'g'), node })
     }
   })
-  
-  const featureFileStream = fs.createReadStream(__dirname + '/bottles.feature', 'utf8')
-  featureFileStream.on('data', file => {
+
+  featureStream.on('data', file => {
     const scanner = new Gherkin.TokenScanner(file, matcher)
     const { name, children } = parser.parse(scanner).feature
     const scenarioNames = []
@@ -60,7 +71,10 @@ stream.on('data', data => {
 
         if (library[keyword]) {
           // assume 1 match
-          const match = library[keyword].find(libraryStep => libraryStep.re.test(text))
+          const match = library[keyword].find(libraryStep =>
+            libraryStep.re.test(text)
+          )
+
           if (!match) throw new Error('no matching step')
 
           const params = match.node.params.map(param => param.name)
@@ -82,12 +96,8 @@ stream.on('data', data => {
               const index = this.node ? params.indexOf(this.node.name) : -1
 
               if (index > -1) {
-                this.update({
-                  type: 'Literal',
-                  value: vars[index]
-                })
+                this.update({ type: 'Literal', value: vars[index] })
               }
-
               if (this.node && this.node.name === 'next') isAsync = true
             })
 
@@ -96,43 +106,31 @@ stream.on('data', data => {
             return acc
           }
         }
-     }, [])
+      }, [])
+    })
 
-   })
+    const scenarioBodies = scenarios.map(scenarioAst)
 
-  const body = scenarios.map(function (scenario) {
-   const steps = scenario.reverse().reduce(function (body, step, i, steps) {
-    const nextStep = steps[i + 1]
+    const ast = assembleAst(name, scenarioNames, scenarioBodies)
 
-    if (nextStep && nextStep.isAsync) {
-      embedStep(nextStep, step)
-      return body
-    }
-
-    body.unshift(step.node)
-    return body
-   }, [])
-
-    return steps
+    console.log(escodegen.generate(ast))
   })
+})
 
-  console.log(escodegen.generate(
+function assembleAst (featureName, scenarioNames, scenarioBodies) {
+  return getProgramExpression([
+    avaSpecDeclaration,
     getFeatureExpression(
-      'bottle feature',
-      [getScenarioExpression('test', body[0])]
+      featureName,
+      scenarioBodies.map((scenarioBody, i) => {
+        return getScenarioExpression(scenarioNames[i], scenarioBody)
+      })
     )
-  ))
+  ])
+}
 
-})
-
-})
-
-function getNode (match) { return match.node.body.body[0] }
-
-function embedStep (nextStep, { node }) {
-  traverse(nextStep).forEach(function (x) {
-    if (x && x.name === 'next') this.parent.update(node)
-  })
+function getNode (match) {
+  return match.node.body.body[0]
 }
 
 function getBody (node) {
@@ -146,8 +144,3 @@ function getVariables (regex, text) {
     return v
   })
 }
-
-
-
-
-

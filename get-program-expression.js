@@ -1,9 +1,9 @@
-module.exports = function getProgramExpression (body) {
+
+module.exports = function getProgramExpression(body) {
   return {
-    program: {
-      type: 'Program',
-      body
-    }
+    type: 'Program',
+    body,
+    sourceType: "module",
   }
 }
 
