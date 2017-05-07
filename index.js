@@ -7,6 +7,10 @@ const traverse = require('traverse')
 const Gherkin = require('gherkin')
 const escodegenOptions = { format: { semicolons: false } }
 
+const getProgramExpression = require('./get-program-expression')
+const getFeatureExpression = require('./get-feature-expression')
+const getScenarioExpression = require('./get-scenario-expression')
+
 const featureFileStream = fs.createReadStream(__dirname + '/bottles.feature')
 const parser = new Gherkin.Parser(new Gherkin.AstBuilder())
 const matcher = new Gherkin.TokenMatcher()
@@ -19,8 +23,7 @@ const library = {
   Then: []
 }
 
-let output = "const { feature } = require('ava-spec') \n"
-let featureDeclaration
+// let output = "const { feature } = require('ava-spec') \n" // use ast
 
 const stream = fs.createReadStream(__dirname + '/steps.js')
 stream.on('data', data => {
@@ -31,7 +34,7 @@ stream.on('data', data => {
 
     // add top level module and variable requires
     if (this.level === 2 && x.type === 'VariableDeclaration') {
-      output =  output + '\n' + escodegen.generate(this.node, escodegenOptions)
+      // TODO add variable declarations to ast
     }
 
     // create library
@@ -48,11 +51,10 @@ stream.on('data', data => {
   featureFileStream.on('data', file => {
     const scanner = new Gherkin.TokenScanner(file, matcher)
     const { name, children } = parser.parse(scanner).feature
-    featureDeclaration = getFeatureDeclaration(name)
-    const scenarioDeclarations = []
+    const scenarioNames = []
 
     const scenarios = children.map(function ({ name, steps }, i) {
-      scenarioDeclarations.push(getScenarioDeclaration(name))
+      scenarioNames.push(name)
 
       return steps.reduce(function (acc, step, i, steps) {
         const keyword = step.keyword.trim()
@@ -92,9 +94,10 @@ stream.on('data', data => {
               if (this.node && this.node.name === 'next') isAsync = true
             })
 
-            console.log('body', pretty.render(match.node.body))
+            console.log('body', pretty.render(match.node.body.body))
+            const node = getNode(match.node)
 
-            acc.push({ node: match.node.body, isAsync })
+            acc.push({ node, isAsync })
             return acc
           }
         }
@@ -102,19 +105,17 @@ stream.on('data', data => {
 
    })
 
-    console.log(scenarios)
-
-
   const body = scenarios.map(function (scenario) {
    const steps = scenario.reverse().reduce(function (body, step, i, steps) {
     const nextStep = steps[i + 1]
 
     if (nextStep && nextStep.isAsync) {
-      recurseStep(nextStep, step)
+      embedStep(nextStep, step)
       return body
     }
 
-    body.unshift(step.node.body)
+    console.log(isArray(step.node.body))
+    body.unshift(step.node.body[0])
     return body
    }, [])
 
@@ -122,51 +123,43 @@ stream.on('data', data => {
   })
 
   
-  const ast = { type: 'BlockStatement', body }
+  console.log('body', body[0])
 
-  console.log('output', pretty.render(body))
-  body[0].forEach(function (step, i) {
-    console.log(step)
-    console.log(escodegen.generate(step[0], escodegenOptions))
-
-  })
+ 
 
 
-  
+  console.log(escodegen.generate(
+    getFeatureExpression(
+      'bottle feature',
+      [getScenarioExpression('test', body[0])]
+    )
+  ))
 
 
-
-})
 
 })
 
-function recurseStep (nextStep, step) {
-  console.log(step.node)
+})
+
+function getNode (node) {
+  console.log('getNode', pretty.render(node.body.body))
+  return node.body
+}
+
+function embedStep (nextStep, step) {
   traverse(nextStep).forEach(function (x) {
     if (x && x.name === 'next') {
-     console.log(x)
-     this.parent.update(step.node)
+     console.log('embedding', step.node)
+     this.parent.update(step.node.body[0])
     }
   })
-}
-
-function getFeatureDeclaration (name) {
-  return function (body) {
-    return `feature('${name}', scenario => {\n  ${body}\n})`
-  }
-}
-
-function getScenarioDeclaration (name) {
-  return function (body) {
-    return `scenario.cb('${name}', t => {\n  ${body}\n})`
-  }
 }
 
 function getBody (node) {
   return escodegen.generate(node, escodegenOptions).replace(/^{|}$/g, '')
 }
 
-function getVariables(regex, text) {
+function getVariables (regex, text) {
   return regex.exec(text).slice(1).map(v => {
     const coerced = v.includes('.') ? parseFloat(v) : parseInt(v, 10)
     if (!isNaN(coerced)) return coerced
