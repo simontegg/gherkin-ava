@@ -95,7 +95,7 @@ stream.on('data', data => {
             })
 
             console.log('body', pretty.render(match.node.body.body))
-            const node = getNode(match.node)
+            const node = getNode(match)
 
             acc.push({ node, isAsync })
             return acc
@@ -114,19 +114,12 @@ stream.on('data', data => {
       return body
     }
 
-    console.log(isArray(step.node.body))
-    body.unshift(step.node.body[0])
+    body.unshift(step.node)
     return body
    }, [])
 
     return steps
   })
-
-  
-  console.log('body', body[0])
-
- 
-
 
   console.log(escodegen.generate(
     getFeatureExpression(
@@ -135,22 +128,19 @@ stream.on('data', data => {
     )
   ))
 
-
-
 })
 
 })
 
-function getNode (node) {
-  console.log('getNode', pretty.render(node.body.body))
-  return node.body
+function getNode (match) {
+  return match.node.body.body[0]
 }
 
 function embedStep (nextStep, step) {
   traverse(nextStep).forEach(function (x) {
     if (x && x.name === 'next') {
      console.log('embedding', step.node)
-     this.parent.update(step.node.body[0])
+     this.parent.update(step.node)
     }
   })
 }
