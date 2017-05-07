@@ -4,8 +4,16 @@ module.exports = function getScenarioExpression (name, body) {
     expression: {
       type: 'CallExpression',
       callee: {
-        type: 'Identifier',
-        name: 'scenario',
+        type: 'MemberExpression',
+        computed: false,
+        object: {
+          type: 'Identifier',
+          name: 'scenario'
+        },
+        property: {
+          type: 'Identifier',
+          name: 'cb'
+        }
       },
       arguments: [
         {
@@ -17,11 +25,11 @@ module.exports = function getScenarioExpression (name, body) {
           params: [
             {
               type: 'Identifier',
-              name: 't',
+              name: 't'
             }
           ],
           body: {
-            type: "BlockStatement",
+            type: 'BlockStatement',
             body
           }
         }
