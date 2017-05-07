@@ -15,7 +15,9 @@ const scenarioAst = require('./scenario-ast')
 
 // constants
 const avaSpecDeclaration = require('./ava-spec-declaration')
-const escodegenOptions = { format: { semicolons: false } }
+const escodegenOptions = {
+  format: { indent: { style: '  ' }, semicolons: false }
+}
 const keywords = ['Given', 'When', 'Then']
 
 module.exports = avaCukes
@@ -93,12 +95,13 @@ function avaCukes (libraryFilePath, featureFilePath, callback) {
                 const vars = getVariables(match.re, text)
 
                 // replace params with actual value
-                traverse(match.node.body).forEach(x => {
+                traverse(match.node.body).forEach(function (x) {
                   const index = this.node ? params.indexOf(this.node.name) : -1
 
                   if (index > -1) {
                     this.update({ type: 'Literal', value: vars[index] })
                   }
+
                   if (this.node && this.node.name === 'next') isAsync = true
                 })
 
@@ -112,7 +115,7 @@ function avaCukes (libraryFilePath, featureFilePath, callback) {
 
       const ast = assembleAst(declarations, name, scenarioNames, scenarioBodies)
 
-      callback(null, escodegen.generate(ast))
+      callback(null, escodegen.generate(ast, escodegenOptions))
     })
   })
 }
