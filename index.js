@@ -44,8 +44,6 @@ stream.on('data', data => {
       library[keyword].push({ re: RegExp(arg0.value, 'g'), node: arg1 })
     }
   })
-
-  console.log(library)
   
   const featureFileStream = fs.createReadStream(__dirname + '/bottles.feature', 'utf8')
   featureFileStream.on('data', file => {
@@ -76,7 +74,6 @@ stream.on('data', data => {
 
           // evaluate
           if (params.length > 0) {
-            console.log(params)
             match.re.lastIndex = 0 // reset regex
             const vars = getVariables(match.re, text)
 
@@ -94,9 +91,7 @@ stream.on('data', data => {
               if (this.node && this.node.name === 'next') isAsync = true
             })
 
-            console.log('body', pretty.render(match.node.body.body))
             const node = getNode(match)
-
             acc.push({ node, isAsync })
             return acc
           }
@@ -132,16 +127,11 @@ stream.on('data', data => {
 
 })
 
-function getNode (match) {
-  return match.node.body.body[0]
-}
+function getNode (match) { return match.node.body.body[0] }
 
-function embedStep (nextStep, step) {
+function embedStep (nextStep, { node }) {
   traverse(nextStep).forEach(function (x) {
-    if (x && x.name === 'next') {
-     console.log('embedding', step.node)
-     this.parent.update(step.node)
-    }
+    if (x && x.name === 'next') this.parent.update(node)
   })
 }
 
