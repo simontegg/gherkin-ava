@@ -18,117 +18,103 @@ const avaSpecDeclaration = require('./ava-spec-declaration')
 const escodegenOptions = { format: { semicolons: false } }
 const keywords = ['Given', 'When', 'Then']
 
-module.exports = function (libraryFile, featureFile, callback) {
+module.exports = avaCukes
+
+function avaCukes (libraryFilePath, featureFilePath, callback) {
   const parser = new Gherkin.Parser(new Gherkin.AstBuilder())
   const matcher = new Gherkin.TokenMatcher()
+  const declarations = []
   const library = {
     Given: [],
     When: [],
     Then: []
   }
+  console.log(libraryFilePath)
 
-  fs.readFile(
-    path.join(__dirname, libraryFilePath),
-    'utf8',
-    (err, libraryFile) => {
+  fs.readFile(libraryFilePath, 'utf8', (err, libraryFile) => {
+    if (err) callback(err)
+
+    const libraryAst = acorn.parse(libraryFile)
+
+    traverse(libraryAst).forEach(function (x) {
+      // add top level module and variable requires
+      if (this.level === 2 && x.type === 'VariableDeclaration') {
+        declarations.push(x)
+      }
+
+      // create library
+      if (
+        this.level === 3 &&
+        x &&
+        x.type === 'CallExpression' &&
+        keywords.includes(this.node.callee.name)
+      ) {
+        const keyword = this.node.callee.name
+        const [regex, node] = this.node.arguments
+        library[keyword].push({ re: RegExp(regex.value, 'g'), node })
+      }
+    })
+
+    fs.readFile(featureFilePath, 'utf8', (err, featureFile) => {
       if (err) callback(err)
 
-      const libraryAst = acorn.parse(libraryFile)
+      const scanner = new Gherkin.TokenScanner(featureFile, matcher)
+      const { name, children } = parser.parse(scanner).feature
+      const scenarioNames = []
 
-      traverse(libraryAst).forEach(function (x) {
-        // add top level module and variable requires
-        if (this.level === 2 && x.type === 'VariableDeclaration') {
-          declarations.push(x)
-        }
+      const scenarioBodies = children
+        .map(({ name, steps }, i) => {
+          scenarioNames.push(name)
 
-        // create library
-        if (
-          this.level === 3 &&
-          x &&
-          x.type === 'CallExpression' &&
-          keywords.includes(this.node.callee.name)
-        ) {
-          const keyword = this.node.callee.name
-          const [regex, node] = this.node.arguments
-          library[keyword].push({ re: RegExp(regex.value, 'g'), node })
-        }
-      })
+          return steps.reduce((acc, step, i, steps) => {
+            const keyword = step.keyword.trim()
+            const { text } = step
 
-      fs.readFile(
-        path.join(__dirname, featureFilePath),
-        'utf8',
-        (err, featureFile) => {
-          if (err) callback(err)
+            if (library[keyword]) {
+              // assume 1 match
+              const match = library[keyword].find(step => step.re.test(text))
+              if (!match) throw new Error('no matching step')
 
-          const scanner = new Gherkin.TokenScanner(featureFile, matcher)
-          const { name, children } = parser.parse(scanner).feature
-          const declarations = []
-          const scenarioNames = []
+              const params = match.node.params.map(param => param.name)
+              let isAsync = false
 
-          const scenarioBodies = children.map(({ name, steps }, i) => {
-            scenarioNames.push(name)
+              // no params
+              if (params.length === 0) {
+                traverse(match.node.body).forEach(function (x) {
+                  if (this.node && this.node.name === 'next') isAsync = true
+                })
+                acc.push({ node: getBody(match), isAsync })
+                return acc
+              }
 
-            return steps
-              .reduce((acc, step, i, steps) => {
-                const keyword = step.keyword.trim()
-                const { text } = step
+              // evaluate
+              if (params.length > 0) {
+                match.re.lastIndex = 0 // reset regex
+                const vars = getVariables(match.re, text)
 
-                if (library[keyword]) {
-                  // assume 1 match
-                  const match = library[keyword].find(step =>
-                    step.re.test(text)
-                  )
-                  if (!match) throw new Error('no matching step')
+                // replace params with actual value
+                traverse(match.node.body).forEach(x => {
+                  const index = this.node ? params.indexOf(this.node.name) : -1
 
-                  const params = match.node.params.map(param => param.name)
-                  let isAsync = false
-
-                  // no params
-                  if (params.length === 0) {
-                    traverse(match.node.body).forEach(function (x) {
-                      if (this.node && this.node.name === 'next') isAsync = true
-                    })
-                    acc.push({ node: getBody(match), isAsync })
-                    return acc
+                  if (index > -1) {
+                    this.update({ type: 'Literal', value: vars[index] })
                   }
+                  if (this.node && this.node.name === 'next') isAsync = true
+                })
 
-                  // evaluate
-                  if (params.length > 0) {
-                    match.re.lastIndex = 0 // reset regex
-                    const vars = getVariables(match.re, text)
+                acc.push({ node: getNode(match), isAsync })
+                return acc
+              }
+            }
+          }, [])
+        })
+        .map(scenarioAst)
 
-                    // replace params with actual value
-                    traverse(match.node.body).forEach(x => {
-                      const index = this.node
-                        ? params.indexOf(this.node.name)
-                        : -1
+      const ast = assembleAst(declarations, name, scenarioNames, scenarioBodies)
 
-                      if (index > -1) {
-                        this.update({ type: 'Literal', value: vars[index] })
-                      }
-                      if (this.node && this.node.name === 'next') isAsync = true
-                    })
-
-                    acc.push({ node: getNode(match), isAsync })
-                    return acc
-                  }
-                }
-              }, [])
-              .map(scenarioAst)
-
-            const ast = assembleAst(
-              declarations,
-              name,
-              scenarioNames,
-              scenarioBodies
-            )
-
-            callback(null, escodegen.generate(ast))
-          })
-        }
-      )
-    }
-  )
+      callback(null, escodegen.generate(ast))
+    })
+  })
 }
 
 function assembleAst (declarations, featureName, scenarioNames, scenarioBodies) {
