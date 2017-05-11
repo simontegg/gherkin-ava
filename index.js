@@ -12,6 +12,7 @@ const getProgramExpression = require('./get-program-expression')
 const getFeatureExpression = require('./get-feature-expression')
 const getScenarioExpression = require('./get-scenario-expression')
 const scenarioAst = require('./scenario-ast')
+const tEndAst = require('./t-end-ast')
 
 // constants
 const avaSpecDeclaration = require('./ava-spec-declaration')
@@ -40,17 +41,10 @@ function avaCukes (libraryFilePath, featureFilePath, callback) {
 
     traverse(libraryAst).forEach(function (x) {
       // add top level module and variable requires
-      if (this.level === 2 && x.type === 'VariableDeclaration') {
-        declarations.push(x)
-      }
+      if (isVariableDeclaration(this, x)) declarations.push(x)
 
       // create library
-      if (
-        this.level === 3 &&
-        x &&
-        x.type === 'CallExpression' &&
-        keywords.includes(this.node.callee.name)
-      ) {
+      if (isKeywordBlock(this, x, keywords)) {
         const keyword = this.node.callee.name
         const [regex, node] = this.node.arguments
         library[keyword].push({ re: RegExp(regex.value, 'g'), node })
@@ -111,6 +105,7 @@ function avaCukes (libraryFilePath, featureFilePath, callback) {
             }
           }, [])
         })
+        .concat([{ node: tEndAst, isAsync: false }])
         .map(scenarioAst)
 
       const ast = assembleAst(declarations, name, scenarioNames, scenarioBodies)
@@ -143,4 +138,17 @@ function getVariables (regex, text) {
     if (!isNaN(coerced)) return coerced
     return v
   })
+}
+
+function isVariableDeclaration (context, node) {
+  return context.level === 2 && x.type === 'VariableDeclaration'
+}
+
+function isKeywordBlock (context, node, keywords) {
+  return (
+    context.level === 3 &&
+    x &&
+    x.type === 'CallExpression' &&
+    keywords.includes(context.node.callee.name)
+  )
 }
