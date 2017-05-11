@@ -4,18 +4,26 @@ const argv = require('yargs').argv
 const fs = require('fs')
 const path = require('path')
 
-const libraryFile = argv._[1]
-const featureFile = argv._[0]
+const libraryFilePath = argv._[1]
+const featureFilePath = argv._[0]
 
-if (!libraryFile) throw new Error('provide a library of step functions')
-if (!featureFile) throw new Error('provide a feature file ')
+if (!libraryFilePath) throw new Error('provide a library of step functions')
+if (!featureFilePath) throw new Error('provide a feature file ')
 
-const writeFile = argv.o
+const writeFilePath = argv.o
+
+console.log(libraryFilePath, featureFilePath)
 
 avaCukes(
-  path.join(__dirname, libraryFile),
-  path.join(__dirname, featureFile),
-  (err, testFile) => {}
-)
+  path.join(__dirname, libraryFilePath),
+  path.join(__dirname, featureFilePath),
+  (err, testFile) => {
+    if (writeFilePath) {
+      return fs.write(writeFilePath, testFile, err => {
+        if (err) throw new Error('could not write')
+      })
+    }
 
-console.log(featureFile, libraryFile, writeFile)
+    process.stdout.write(testFile)
+  }
+)
