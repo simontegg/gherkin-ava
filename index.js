@@ -100,12 +100,16 @@ function avaCukes (libraryFilePath, featureFilePath, callback) {
                 })
 
                 acc.push({ node: getNode(match), isAsync })
+
+                if (i === steps.length - 1) {
+                  acc.push({ node: tEndAst, isAsync: false })
+                }
+
                 return acc
               }
             }
           }, [])
         })
-        .concat([{ node: tEndAst, isAsync: false }])
         .map(scenarioAst)
 
       const ast = assembleAst(declarations, name, scenarioNames, scenarioBodies)
@@ -141,14 +145,14 @@ function getVariables (regex, text) {
 }
 
 function isVariableDeclaration (context, node) {
-  return context.level === 2 && x.type === 'VariableDeclaration'
+  return context.level === 2 && node.type === 'VariableDeclaration'
 }
 
 function isKeywordBlock (context, node, keywords) {
   return (
     context.level === 3 &&
-    x &&
-    x.type === 'CallExpression' &&
+    node &&
+    node.type === 'CallExpression' &&
     keywords.includes(context.node.callee.name)
   )
 }

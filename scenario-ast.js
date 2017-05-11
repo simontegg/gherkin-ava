@@ -1,9 +1,10 @@
 const traverse = require('traverse')
 
 module.exports = function (scenario) {
+  console.log({ scenario })
   return scenario.reverse().reduce(function (body, step, i, steps) {
     const nextStep = steps[i + 1]
-    console.log(nextStep)
+    console.log({ nextStep })
 
     if (nextStep && nextStep.isAsync) {
       embedStep(nextStep, step.node)
