@@ -7,8 +7,8 @@ feature('Ava Asynchronous Example', scenario => {
       if (err)
         t.end(err);
       wall.fall(1);
-      t.is(99, wall.items);
-    });
-    t.end()
+      t.is(99, wall.items);;
+      t.end()
+    })
   })
 })

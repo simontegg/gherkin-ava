@@ -6,6 +6,7 @@ const Gherkin = require('gherkin')
 const isArray = require('is-array')
 const path = require('path')
 const traverse = require('traverse')
+const pretty = require('prettyjson')
 
 // modules
 const getProgramExpression = require('./get-program-expression')
@@ -58,11 +59,11 @@ function avaCukes (libraryFilePath, featureFilePath, callback) {
       const { name, children } = parser.parse(scanner).feature
       const scenarioNames = []
 
-      const scenarioBodies = children
-        .map(({ name, steps }, i) => {
-          scenarioNames.push(name)
+      const scenarioBodies = children.map(({ name, steps }, i) => {
+        scenarioNames.push(name)
 
-          return steps.reduce((acc, step, i, steps) => {
+        return steps
+          .reduce((acc, step, i, steps) => {
             const keyword = step.keyword.trim()
             const { text } = step
 
@@ -100,19 +101,18 @@ function avaCukes (libraryFilePath, featureFilePath, callback) {
                 })
 
                 acc.push({ node: getNode(match), isAsync })
-
-                if (i === steps.length - 1) {
-                  acc.push({ node: tEndAst, isAsync: false })
-                }
-
                 return acc
               }
             }
           }, [])
-        })
-        .map(scenarioAst)
+          .concat({ node: tEndAst(), isAsync: false })
+      })
 
-      const ast = assembleAst(declarations, name, scenarioNames, scenarioBodies)
+      const scenarios = scenarioBodies.map(scenarioAst)
+      // console.log(pretty.render(scenarios))
+      console.log(scenarios)
+
+      const ast = assembleAst(declarations, name, scenarioNames, scenarios)
 
       callback(null, escodegen.generate(ast, escodegenOptions))
     })
