@@ -2,6 +2,8 @@
 const avaCukes = require('../')
 const argv = require('yargs').argv
 const fs = require('fs')
+const Writable = require('stream').Writable
+const meow = require('meow')
 const path = require('path')
 
 const libraryFilePath = argv._[0]
@@ -12,19 +14,18 @@ if (!featureFilePath) throw new Error('provide a feature file ')
 
 const writeFilePath = argv.o
 
-console.log('library', libraryFilePath)
-console.log('feature', featureFilePath)
-
 avaCukes(
   path.resolve(__dirname, '../', libraryFilePath),
   path.resolve(__dirname, '../', featureFilePath),
   (err, testFile) => {
+    if (err) process.exit(1)
     if (writeFilePath) {
       return fs.write(writeFilePath, testFile, err => {
-        if (err) throw new Error('could not write')
+        if (err) process.exit(1)
       })
     }
 
     process.stdout.write(testFile)
+    process.exit(0)
   }
 )

@@ -46,7 +46,6 @@ function embedStep (node, nextNode) {
 }
 
 function getParentArrayPath (node) {
-  console.log('hdhdhd')
   if (!node) return null
   if (node.parent && isArray(node.parent.node)) return node.parent.path
   return getParentArrayPath(node.parent)

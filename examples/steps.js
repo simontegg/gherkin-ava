@@ -16,4 +16,3 @@ Then('there (?:are|are still) (\\d+) green bottles standing on the wall', functi
   t.is(num, wall.items)
 })
 
-

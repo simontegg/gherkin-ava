@@ -17,8 +17,7 @@ feature('Ava synchronous Example', scenario => {
     const wall = Wall(100)
     wall.fall(1)
     t.is(wall.getBottles(), 99)
-    t.end() 
+    t.end()
   })
 })
-
 

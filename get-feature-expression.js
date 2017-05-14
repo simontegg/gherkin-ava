@@ -5,7 +5,7 @@ module.exports = function getFeatureExpression (name, body) {
       type: 'CallExpression',
       callee: {
         type: 'Identifier',
-        name: 'feature',
+        name: 'feature'
       },
       arguments: [
         {
@@ -17,11 +17,11 @@ module.exports = function getFeatureExpression (name, body) {
           params: [
             {
               type: 'Identifier',
-              name: 'scenario',
+              name: 'scenario'
             }
           ],
           body: {
-            type: "BlockStatement",
+            type: 'BlockStatement',
             body
           }
         }

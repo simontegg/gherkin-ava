@@ -33,7 +33,6 @@ function avaCukes (libraryFilePath, featureFilePath, callback) {
     When: [],
     Then: []
   }
-  console.log(libraryFilePath)
 
   fs.readFile(libraryFilePath, 'utf8', (err, libraryFile) => {
     if (err) callback(err)
@@ -59,60 +58,60 @@ function avaCukes (libraryFilePath, featureFilePath, callback) {
       const { name, children } = parser.parse(scanner).feature
       const scenarioNames = []
 
-      const scenarioBodies = children.map(({ name, steps }, i) => {
-        scenarioNames.push(name)
+      const scenarioBodies = children
+        .map(({ name, steps }, i) => {
+          scenarioNames.push(name)
 
-        return steps
-          .reduce((acc, step, i, steps) => {
-            const keyword = step.keyword.trim()
-            const { text } = step
+          return steps
+            .reduce((acc, step, i, steps) => {
+              const keyword = step.keyword.trim()
+              const { text } = step
 
-            if (library[keyword]) {
-              // assume 1 match
-              const match = library[keyword].find(step => step.re.test(text))
-              if (!match) throw new Error('no matching step')
+              if (library[keyword]) {
+                // assume 1 match
+                const match = library[keyword].find(step => step.re.test(text))
+                if (!match) throw new Error('no matching step')
 
-              const params = match.node.params.map(param => param.name)
-              let isAsync = false
+                const params = match.node.params.map(param => param.name)
+                let isAsync = false
 
-              // no params
-              if (params.length === 0) {
-                traverse(match.node.body).forEach(function (x) {
-                  if (this.node && this.node.name === 'next') isAsync = true
-                })
-                acc.push({ node: getBody(match), isAsync })
-                return acc
+                // no params
+                if (params.length === 0) {
+                  traverse(match.node.body).forEach(function (x) {
+                    if (this.node && this.node.name === 'next') isAsync = true
+                  })
+                  acc.push({ node: getBody(match), isAsync })
+                  return acc
+                }
+
+                // evaluate
+                if (params.length > 0) {
+                  match.re.lastIndex = 0 // reset regex
+                  const vars = getVariables(match.re, text)
+
+                  // replace params with actual value
+                  traverse(match.node.body).forEach(function (x) {
+                    const index = this.node
+                      ? params.indexOf(this.node.name)
+                      : -1
+
+                    if (index > -1) {
+                      this.update({ type: 'Literal', value: vars[index] })
+                    }
+
+                    if (this.node && this.node.name === 'next') isAsync = true
+                  })
+
+                  acc.push({ node: getNode(match), isAsync })
+                  return acc
+                }
               }
+            }, [])
+            .concat({ node: tEndAst(), isAsync: false })
+        })
+        .map(scenarioAst)
 
-              // evaluate
-              if (params.length > 0) {
-                match.re.lastIndex = 0 // reset regex
-                const vars = getVariables(match.re, text)
-
-                // replace params with actual value
-                traverse(match.node.body).forEach(function (x) {
-                  const index = this.node ? params.indexOf(this.node.name) : -1
-
-                  if (index > -1) {
-                    this.update({ type: 'Literal', value: vars[index] })
-                  }
-
-                  if (this.node && this.node.name === 'next') isAsync = true
-                })
-
-                acc.push({ node: getNode(match), isAsync })
-                return acc
-              }
-            }
-          }, [])
-          .concat({ node: tEndAst(), isAsync: false })
-      })
-
-      const scenarios = scenarioBodies.map(scenarioAst)
-      // console.log(pretty.render(scenarios))
-      console.log(scenarios)
-
-      const ast = assembleAst(declarations, name, scenarioNames, scenarios)
+      const ast = assembleAst(declarations, name, scenarioNames, scenarioBodies)
 
       callback(null, escodegen.generate(ast, escodegenOptions))
     })
