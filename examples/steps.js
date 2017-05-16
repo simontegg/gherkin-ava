@@ -12,7 +12,9 @@ When('(\\d+) green bottle accidentally falls', function (num) {
   })
 })
 
-Then('there (?:are|are still) (\\d+) green bottles standing on the wall', function (num) {
-  t.is(num, wall.items)
-})
-
+Then(
+  'there (?:are|are still) (\\d+) green bottles standing on the wall',
+  function (num) {
+    t.is(num, wall.items)
+  }
+)
