@@ -16,9 +16,11 @@ const writeFilePath = argv.o
 
 fs.readFile(
   path.resolve(__dirname, '../', libraryFilePath),
+  'utf8',
   (err, libraryFile) => {
     fs.readFile(
       path.resolve(__dirname, '../', featureFilePath),
+      'utf8',
       (err, featureFile) => {
         const testFile = avaCukes(libraryFile, featureFile)
 
