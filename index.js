@@ -1,5 +1,6 @@
 // main
 const acorn = require('acorn')
+const recast = require('recast')
 const escodegen = require('escodegen')
 const fs = require('fs')
 const Gherkin = require('gherkin')
@@ -31,16 +32,17 @@ function avaCukes (libraryFile, featureFile) {
   const { name, children } = parser.parse(scanner).feature
   const declarations = []
   const scenarioNames = []
+  const scenarioTypes = []
   const library = {
     Given: [],
     When: [],
     Then: []
   }
 
-  const libraryAst = acorn.parse(libraryFile)
+  const libraryAst = acorn.parse(libraryFile, { locations: true })
 
   traverse(libraryAst).forEach(function (x) {
-    // add top level module and variable requires
+    // add top level module requires
     if (isVariableDeclaration(this, x)) declarations.push(x)
 
     // create library
@@ -53,9 +55,10 @@ function avaCukes (libraryFile, featureFile) {
 
   const scenarioBodies = children
     .map(({ name, steps }, i) => {
+      let scenarioType = 'sync'
       scenarioNames.push(name)
 
-      return steps
+      const scenarioBody = steps
         .reduce((acc, step, i, steps) => {
           const keyword = step.keyword.trim()
           const { text } = step
@@ -66,12 +69,12 @@ function avaCukes (libraryFile, featureFile) {
             if (!match) throw new Error('no matching step')
 
             const params = match.node.params.map(param => param.name)
-            let isAsync = false
+            let isCallback = false
 
             // no params
             if (params.length === 0) {
               traverse(match.node.body).forEach(function (x) {
-                if (this.node && this.node.name === 'next') isAsync = true
+                if (this.node && this.node.name === 'next') isCallback = true
               })
               acc.push({ node: getBody(match), isAsync })
               return acc
@@ -90,15 +93,22 @@ function avaCukes (libraryFile, featureFile) {
                   this.update({ type: 'Literal', value: vars[index] })
                 }
 
-                if (this.node && this.node.name === 'next') isAsync = true
+                if (this.node && this.node.name === 'next') {
+                  isCallback = true
+                  scenarioType = 'callback'
+                }
               })
 
-              acc.push({ node: getNode(match), isAsync })
+              acc.push({ node: getNode(match), isCallback })
               return acc
             }
           }
         }, [])
-        .concat({ node: tEndAst(), isAsync: false })
+        .concat({ node: tEndAst(), isCallback: false })
+
+      scenarioTypes.push(scenarioType)
+
+      return scenarioBody
     })
     .map(scenarioAst)
 

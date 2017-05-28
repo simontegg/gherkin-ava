@@ -2,12 +2,19 @@ const avaCukes = require('../')
 const path = require('path')
 const fs = require('fs')
 
-const featureFile = path.join(__dirname, 'bottles.feature')
-const libraryFile = path.join(__dirname, 'steps.js')
+const libraryFilePath = path.join(__dirname, '/bottles/steps.js')
+const featureFilePath = path.join(__dirname, '/bottles/bottles.feature')
 
-fs.readFile()
-avaCukes(libraryFile, featureFile, (err, featureSpec) => {
-  fs.writeFile(path.join(__dirname, 'bottles-spec.js'), featureSpec, err => {
-    if (err) throw new Error('didnt write')
+fs.readFile(libraryFilePath, 'utf8', (err, libraryFile) => {
+  fs.readFile(featureFilePath, 'utf8', (err, featureFile) => {
+    const featureSpec = avaCukes(libraryFile, featureFile)
+
+    fs.writeFile(
+      path.join(__dirname, '/bottles/bottles-spec.js'),
+      featureSpec,
+      err => {
+        if (err) throw new Error('didnt write')
+      }
+    )
   })
 })

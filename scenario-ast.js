@@ -14,15 +14,15 @@ module.exports = function (scenario) {
     const prevStep = scenario[i - 1]
     const nextStep = scenario[i + 1]
 
-    if (step.isAsync && nextStep) {
+    if (step.isCallback && nextStep) {
       insertPath = embedStep(step.node, nextStep.node)
-      asyncBody = scenario[i].node
+      callbackBody = scenario[i].node
       ast.push(step.node)
-    } else if (prevStep && !prevStep.isAsync && insertPath) {
-      const body = traverse(asyncBody).get(insertPath)
+    } else if (prevStep && !prevStep.isCallback && insertPath) {
+      const body = traverse(callbackBody).get(insertPath)
       if (body) {
         body.push(step.node)
-        traverse(asyncBody).set(insertPath, body)
+        traverse(callbackBody).set(insertPath, body)
       }
     } else if (!insertPath) {
       ast.push(step.node)
