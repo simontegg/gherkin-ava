@@ -28,7 +28,7 @@ fs.readFile(
           return fs.write(writeFilePath, testFile, err => {
             if (err) process.exit(1)
           })
-                                                  }
+        }
 
         process.stdout.write(testFile)
         process.exit(0)

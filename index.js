@@ -31,15 +31,13 @@ function avaCukes (libraryFile, featureFile) {
   const scanner = new Gherkin.TokenScanner(featureFile, matcher)
   const { name, children } = parser.parse(scanner).feature
   const declarations = []
-  const scenarioNames = []
-  const scenarioTypes = []
   const library = {
     Given: [],
     When: [],
     Then: []
   }
 
-  const libraryAst = acorn.parse(libraryFile, { locations: true })
+  const libraryAst = acorn.parse(libraryFile, { ecmaVersion: 8 })
 
   traverse(libraryAst).forEach(function (x) {
     // add top level module requires
@@ -53,77 +51,86 @@ function avaCukes (libraryFile, featureFile) {
     }
   })
 
+  const scenarioOptions = []
+
   const scenarioBodies = children
     .map(({ name, steps }, i) => {
-      let scenarioType = 'sync'
-      scenarioNames.push(name)
+      const options = { name, assertionCount: 0 }
 
       const scenarioBody = steps
         .reduce((acc, step, i, steps) => {
           const keyword = step.keyword.trim()
           const { text } = step
+          const librarySet = library[keyword]
+          const match = librarySet ? getMatch(librarySet, text) : null
 
-          if (library[keyword]) {
-            // assume 1 match
-            const match = library[keyword].find(step => step.re.test(text))
-            if (!match) throw new Error('no matching step')
-
+          if (match) {
             const params = match.node.params.map(param => param.name)
             let isCallback = false
 
-            // no params
-            if (params.length === 0) {
-              traverse(match.node.body).forEach(function (x) {
-                if (this.node && this.node.name === 'next') isCallback = true
-              })
-              acc.push({ node: getBody(match), isAsync })
-              return acc
-            }
-
             // evaluate
-            if (params.length > 0) {
-              match.re.lastIndex = 0 // reset regex
-              const vars = getVariables(match.re, text)
+            match.re.lastIndex = 0 // reset regex
+            const vars = params.length > 0 ? getVariables(match.re, text) : []
 
-              // replace params with actual value
-              traverse(match.node.body).forEach(function (x) {
-                const index = this.node ? params.indexOf(this.node.name) : -1
+            traverse(match.node.body).forEach(function (x) {
+              if (this.node) {
+                const { name } = this.node
 
-                if (index > -1) {
-                  this.update({ type: 'Literal', value: vars[index] })
+                if (params.length > 0) {
+                  const index = params.indexOf(name)
+
+                  if (index > -1) {
+                    // replace params with actual value
+                    this.update({ type: 'Literal', value: vars[index] })
+                  }
                 }
 
-                if (this.node && this.node.name === 'next') {
+                if (isAssertion(name, this.parent)) {
+                  options.assertionCount++
+                }
+
+                if (name === 'next') {
                   isCallback = true
-                  scenarioType = 'callback'
+                  options.callback = true
                 }
-              })
 
-              acc.push({ node: getNode(match), isCallback })
-              return acc
-            }
+                if (name === 'async') {
+                  options.async = true
+                }
+              }
+            })
+
+            acc.push({ node: getNode(match), isCallback })
+            return acc
+          } else {
+            throw new Error('no matching step!')
           }
         }, [])
         .concat({ node: tEndAst(), isCallback: false })
 
-      scenarioTypes.push(scenarioType)
+      scenarioOptions.push(options)
 
       return scenarioBody
     })
     .map(scenarioAst)
 
-  const ast = assembleAst(declarations, name, scenarioNames, scenarioBodies)
+  const ast = assembleAst(declarations, name, scenarioOptions, scenarioBodies)
 
   return escodegen.generate(ast, escodegenOptions)
 }
 
-function assembleAst (declarations, featureName, scenarioNames, scenarioBodies) {
+function assembleAst (
+  declarations,
+  featureName,
+  scenarioOptions,
+  scenarioBodies
+) {
   return getProgramExpression(
     [avaSpecDeclaration].concat(declarations).concat(
       getFeatureExpression(
         featureName,
         scenarioBodies.map((scenarioBody, i) => {
-          return getScenarioExpression(scenarioNames[i], scenarioBody)
+          return getScenarioExpression(scenarioOptions[i], scenarioBody)
         })
       )
     )
@@ -132,6 +139,17 @@ function assembleAst (declarations, featureName, scenarioNames, scenarioBodies) 
 
 function getNode (match) {
   return match.node.body.body[0]
+}
+
+function getMatch (librarySet, text) {
+  return librarySet.find(step => step.re.test(text))
+}
+
+function isAssertion (name, parent) {
+  return (
+    name === 't' &&
+    ['end', 'context', 'plan'].indexOf(parent.node.property.name) === -1
+  )
 }
 
 function getVariables (regex, text) {

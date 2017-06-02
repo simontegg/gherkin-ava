@@ -1,4 +1,7 @@
-module.exports = function getScenarioExpression (name, body) {
+module.exports = function getScenarioExpression (
+  { name, callback, async, assertionCount },
+  body
+) {
   return {
     type: 'ExpressionStatement',
     expression: {

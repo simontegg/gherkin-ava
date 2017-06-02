@@ -1,6 +1,6 @@
 const {feature} = require('ava-spec');
 const Wall = require('./wall');
-const asyncFuntion = require('.async-function');
+const asyncFunction = require('./async-function');
 feature('Ava Asynchronous Example', scenario => {
   scenario.cb('A bottle falls from the wall', t => {
     const wall = new Wall(100);

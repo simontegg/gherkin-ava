@@ -1,16 +1,13 @@
 const Wall = require('./wall')
-const asyncFunction = require('./async-function')
+const promiseFunction = require('./async-function')
 
 Given('(\\d+) green bottles are standing on the wall', function (num) {
   const wall = new Wall(num)
 })
 
-When('(\\d+) green bottle accidentally falls', function (num) {
-  asyncFuntion(num, err => {
-    if (err) t.end(err)
-    wall.fall(num)
-    next()
-  })
+When('(\\d+) green bottle accidentally falls', async function (num) {
+  const asyncNum = await promiseFuntion(num)
+  wall.fall(asyncNum)
 })
 
 Then(
