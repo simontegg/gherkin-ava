@@ -1,5 +1,6 @@
 // main
 const acorn = require('acorn')
+require('acorn-es7-plugin')(acorn)
 const recast = require('recast')
 const escodegen = require('escodegen')
 const fs = require('fs')
